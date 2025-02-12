@@ -1,0 +1,4 @@
+token.json
+.direnv
+.cache
+/.pre-commit-config.yaml

@@ -1,0 +1,175 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/debugloop/wunschkonzert/pkg/spotify"
+)
+
+// Head renderes the head section.
+templ Head() {
+	<head>
+		<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous">
+    </script>
+		<script src="https://unpkg.com/htmx-ext-sse@2.2.2" crossorigin="anonymous">
+    </script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css"/>
+		<link href="https://fonts.cdnfonts.com/css/brittany-signature" rel="stylesheet"/>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<meta name="color-scheme" content="light dark"/>
+		<style>
+    @media only screen and (max-width: 520px) {
+        td:last-child {
+            display: none;
+        }
+        th:last-child {
+            display: none;
+        }
+    }
+    </style>
+		<title>Wunschkonzert</title>
+	</head>
+}
+
+// Index glues together the main site.
+templ Index() {
+	<!DOCTYPE html>
+	<html lang="en">
+		@Head()
+		<body>
+			<main class="container">
+				<nav>
+					<ul>
+						<li><h3>Wunschkonzert</h3></li>
+					</ul>
+					<ul></ul>
+					<ul>
+						<li style="text-align: right"><h1 style="font-family: 'Brittany Signature', sans-serif">Jane & Daniel</h1></li>
+					</ul>
+				</nav>
+				@Search()
+			</main>
+			<div
+				data-theme="dark"
+				style={ "position: fixed", "bottom:0", "width: 100%", "margin-bottom: -1rem" }
+				hx-get="/now-playing"
+				hx-trigger="load"
+			></div>
+		</body>
+	</html>
+}
+
+// Search renders the search box itself.
+templ Search() {
+	<input
+		class="form-control"
+		type="search"
+		name="search"
+		placeholder="Was möchtest du heute noch hören?"
+		hx-post="/search"
+		hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load"
+		hx-target="#search-results"
+		hx-indicator=".htmx-indicator"
+	/>
+	<div id="search-results"></div>
+	<div class="htmx-indicator">
+		<br/>
+		<center>
+			<h4 aria-busy="true">Suche…</h4>
+		</center>
+	</div>
+}
+
+// SearchResult renders the search result table.
+templ SearchResult(results *spotify.SearchResult) {
+	<table class="table">
+		<thead>
+			<tr>
+				<th></th>
+				<th>Titel</th>
+				<th>Intepret</th>
+				<th>Album</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, item := range results.Tracks.Songs {
+				<tr>
+					{{
+	names := make([]string, len(item.Artists))
+	for i, artist := range item.Artists {
+		names[i] = artist.Name
+	}
+
+	year := item.Album.ReleaseDate
+	if item.Album.ReleaseDatePrecision != "year" {
+		year = strings.Split(year, "-")[0]
+	}
+					}}
+					<td>
+						<button name="song" value={ item.URI } hx-swap="outerHTML" hx-post="/add"><b>+</b></button>
+					</td>
+					<td>{ item.Name }</td>
+					<td>{ strings.Join(names, ", ") }</td>
+					<td>{ item.Album.Name } ({ year })</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+// NowPlayingSection contains the live-reloading NowPlaying widget. It includes a instant evaluation of that widget with
+// the first render.
+templ NowPlayingSection(np *spotify.NowPlaying) {
+	<div hx-ext="sse" sse-connect="/now-playing-live" sse-swap="message">
+		@NowPlaying(np)
+	</div>
+}
+
+// NowPlaying shows the live-reloaded result as well as the initial load.
+templ NowPlaying(np *spotify.NowPlaying) {
+	{{
+	if np == nil {
+		return
+	}
+	names := make([]string, len(np.Song.Artists))
+	for i, artist := range np.Song.Artists {
+		names[i] = artist.Name
+		if i == len(np.Song.Artists)-1 && i > 0 {
+			names[i] = "und " + names[i]
+		}
+	}
+	}}
+	<article style={ "padding: 0", "border-radius: 0" }>
+		<nav class="container">
+			<ul>
+				if !np.Playing {
+					<li>
+						<b>⏸︎</b>
+					</li>
+				}
+				<li>
+					<b>{ np.Song.Name }</b> von <b>{ strings.Join(names, ", ") }</b>
+				</li>
+			</ul>
+			<ul></ul>
+			<ul>
+				<li>
+					<small>
+						{ time.Time{}.Add(time.Duration(np.ProgressMs)*time.Millisecond).Format("04:05") } / { time.Time{}.Add(time.Duration(np.Song.DurationMs)*time.Millisecond).Format("04:05") }
+					</small>
+				</li>
+			</ul>
+		</nav>
+		<div class="container" style={ "margin-top: -.5rem" }>
+			<progress value={ fmt.Sprintf("%d", np.ProgressMs) } max={ fmt.Sprintf("%d", np.Song.DurationMs) }></progress>
+		</div>
+	</article>
+}
+
+// DisabledButton is what a clicked button is replaced with.
+templ DisabledButton() {
+	<button disabled><b>+</b></button>
+}
