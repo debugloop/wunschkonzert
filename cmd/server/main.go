@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 
 	"github.com/debugloop/wunschkonzert/pkg/api"
 	"github.com/debugloop/wunschkonzert/pkg/api/handlers"
@@ -57,31 +59,41 @@ func main() {
 		},
 	)))
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	if *clientID == "" || *clientSecret == "" || *playlistID == "" {
 		if *clientID == "" {
-			slog.Error("Missing required -auth.client.id argument.")
+			slog.ErrorContext(ctx, "Missing required -auth.client.id argument.")
 		}
 		if *clientSecret == "" {
-			slog.Error("Missing required -auth.client.secret argument.")
+			slog.ErrorContext(ctx, "Missing required -auth.client.secret argument.")
 		}
 		if *playlistID == "" {
-			slog.Error("Missing required -playlist.id argument.")
+			slog.ErrorContext(ctx, "Missing required -playlist.id argument.")
 		}
 		os.Exit(2)
 	}
 
 	otelSink, err := prometheus.New()
 	if err != nil {
-		slog.Error("Failed to setup opentelemetry prometheus collector", "error", err)
+		slog.ErrorContext(ctx, "Failed to setup opentelemetry prometheus collector.", "error", err)
 	}
-	provider := metric.NewMeterProvider(metric.WithReader(otelSink))
+
+	service, err := resource.New(ctx, resource.WithAttributes(
+		semconv.ServiceName("wunschkonzert"),
+	))
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to setup opentelemetry resources.", "error", err)
+	}
+	provider := metric.NewMeterProvider(
+		metric.WithReader(otelSink),
+		metric.WithResource(service),
+	)
 	otel.SetMeterProvider(provider)
 
 	metricServer := api.NewServer("metrics", *metricsListen)
 	metricServer.Handle("/metrics", promhttp.Handler())
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
 
 	// Setup our OAuth service, which will restore and persist a token it has obtained. It will obtain those through
 	// the admin api handlers which have access to this service.

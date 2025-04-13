@@ -49,12 +49,12 @@ func NowPlayingHandler(spotify *spotifylib.Client) http.Handler {
 		func(w http.ResponseWriter, req *http.Request) {
 			resp, err := spotify.NowPlaying(req.Context())
 			if err != nil {
-				slog.Warn("Problem retrieving now playing data from spotify, rendering anyways.", "error", err)
+				slog.WarnContext(req.Context(), "Problem retrieving now playing data from spotify, rendering anyways.", "error", err)
 			}
 
 			err = ui.NowPlayingSection(resp).Render(req.Context(), w)
 			if err != nil {
-				slog.Error("Unable to render or send response.", "error", err)
+				slog.ErrorContext(req.Context(), "Unable to render or send response.", "error", err)
 				return
 			}
 		},
@@ -73,8 +73,8 @@ func NowPlayingLiveHandler(realtimeService *realtime.Service, serverName string)
 			w.Header().Set("Connection", "keep-alive")
 
 			updates := make(chan *spotifylib.NowPlaying)
-			realtimeService.Subscribe(updates)
-			defer realtimeService.Unsubscribe(updates)
+			realtimeService.Subscribe(req.Context(), updates)
+			defer realtimeService.Unsubscribe(req.Context(), updates)
 			for {
 				select {
 				case <-req.Context().Done():
@@ -83,13 +83,21 @@ func NowPlayingLiveHandler(realtimeService *realtime.Service, serverName string)
 					if !ok {
 						return
 					}
-					fmt.Fprintf(w, "data: ")
-					err := ui.NowPlaying(np).Render(req.Context(), w)
+					_, err := fmt.Fprintf(w, "data: ")
 					if err != nil {
-						fmt.Printf("Error %s", err)
+						slog.ErrorContext(req.Context(), "Unable to start SSE frame.", "error", err)
 						return
 					}
-					fmt.Fprintf(w, "\n\n")
+					err = ui.NowPlaying(np).Render(req.Context(), w)
+					if err != nil {
+						slog.ErrorContext(req.Context(), "Unable to render or send response.", "error", err)
+						return
+					}
+					_, err = fmt.Fprintf(w, "\n\n")
+					if err != nil {
+						slog.ErrorContext(req.Context(), "Unable to complete SSE frame.", "error", err)
+						return
+					}
 					w.(http.Flusher).Flush()
 				}
 			}

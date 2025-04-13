@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -70,7 +71,12 @@ func get[T any](c *Client, ctx context.Context, path string, params ...map[strin
 		c.refreshTransport()
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			slog.WarnContext(ctx, "Error closing Body after parsing the response.", "error", err)
+		}
+	}()
 
 	switch resp.StatusCode {
 	default:

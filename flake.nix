@@ -46,8 +46,12 @@
           };
           golangci-lint = {
             enable = true;
+            package = pkgs.golangci-lint;
             types = ["go"];
-            excludes = ["_templ\\.go"];
+            excludes = [
+              "_templ\\.go"
+              "^vendor/"
+            ];
           };
           templ-format = {
             enable = true;
