@@ -119,13 +119,6 @@
     in {
       options.services.wunschkonzert = {
         enable = lib.mkEnableOption "Enable wunschkonzert service";
-        workingDirectory = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
-          description = ''
-            Working directory of the service. The token file will end up here.
-          '';
-          default = null;
-        };
         environmentFile = lib.mkOption {
           type = lib.types.nullOr lib.types.path;
           description = ''
@@ -184,7 +177,7 @@
           after = ["network.target"];
           serviceConfig = {
             Type = "simple";
-            WorkingDirectory = config.services.wunschkonzert.workingDirectory;
+            StateDirectory = "wunschkonzert";
             EnvironmentFile = config.services.wunschkonzert.environmentFile;
             ExecStart = lib.concatStringsSep " \\\n " (
               [
