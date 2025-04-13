@@ -186,6 +186,7 @@
                 "-server.listen=${cfg.server.listen}"
                 "-auth.client.id=${cfg.auth.client.id}"
                 "-auth.client.secret=${cfg.auth.client.secret}"
+                "-auth.token.path=/var/lib/wunschkonzert/token.json"
                 "-auth.listen=${cfg.auth.listen}"
                 "-playlist.id=${cfg.playlist}"
                 "-metrics.listen=${cfg.metrics.listen}"
